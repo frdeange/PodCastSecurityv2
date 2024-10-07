@@ -106,7 +106,7 @@ For example:
   <voice name="{{Speaker2_Voice}}">Speaker 2's dialogue</voice>
 </speak>
 
-Ensure that the SSML is well-formed and can be interpreted by Azure Speech Services.
+Ensure that the SSML is well-formed and can be interpreted by Azure Speech Services. Add Prosody and Emphasis tags to make the conversation more engaging, but do not use fast prosody never.
 
 Do not include any text outside of the SSML tags."""
                 }
