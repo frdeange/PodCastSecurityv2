@@ -1,0 +1,54 @@
+<!DOCTYPE html>  
+<html lang="en">  
+<head>  
+    <meta charset="UTF-8">  
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">  
+    <title>Podcast Anything</title>  
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">  
+</head>  
+<body>  
+    <div class="container">  
+        <header>  
+            <h1>Podcast Anything</h1>  
+        </header>  
+        <section class="content">  
+            <h2>Podcast Content</h2>  
+            <form id="pdf-form" enctype="multipart/form-data">  
+                <label for="pdf-file">Select PDF File</label>  
+                <input type="file" id="pdf-file" name="pdf-file">  
+                <label for="azure">Use Azure Document Intelligence</label>  
+                <input type="checkbox" id="azure" name="azure">  
+                <button type="button" onclick="extractTextFromPdf()">Extract Text from PDF</button>  
+            </form>  
+            <form id="website-form">  
+                <label for="website-url">Website URL</label>  
+                <input type="text" id="website-url" name="website-url" placeholder="Enter website URL...">  
+                <button type="button" onclick="extractTextFromWebsite()">Extract Text from Website</button>  
+            </form>  
+            <form id="content-form">  
+                <label for="podcast-content">Content for Podcast Outline</label>  
+                <textarea id="podcast-content" name="podcast-content" rows="10"></textarea>  
+                <button type="button" onclick="generateOutline()">Generate Outline</button>  
+            </form>  
+        </section>  
+        <section class="outline">  
+            <h2>Podcast Outline</h2>  
+            <form id="outline-form">  
+                <label for="speaker1">Speaker 1 Voice</label>  
+                <select id="speaker1" name="speaker1">  
+                    <option value="guy">Guy</option>  
+                    <option value="jenny">Jenny</option>  
+                </select>  
+                <label for="speaker2">Speaker 2 Voice</label>  
+                <select id="speaker2" name="speaker2">  
+                    <option value="jenny">Jenny</option>  
+                    <option value="guy">Guy</option>  
+                </select>  
+                <textarea id="conversation-outline" name="conversation-outline" rows="10" placeholder="The generated conversation outline will appear here..."></textarea>  
+                <button type="button" onclick="generateAudio()">Generate Audio</button>  
+            </form>  
+        </section>  
+    </div>  
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>  
+</body>  
+</html>  
