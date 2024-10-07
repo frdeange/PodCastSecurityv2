@@ -1,6 +1,9 @@
-Flask  
-python-dotenv  
-azure-ai-formrecognizer  
-azure-cognitiveservices-speech  
-openai  
-ffmpeg-python  
+Flask
+python-dotenv
+azure-ai-formrecognizer
+azure-cognitiveservices-speech
+openai
+ffmpeg-python
+beautifulsoup4
+requests
+PyPDF2

@@ -1,96 +1,177 @@
-from flask import Flask, render_template, request, jsonify  
-import os  
+from flask import Flask, render_template, request, jsonify, send_from_directory
+import os
 import openai
-from openai import AzureOpenAI
+from azure.ai.formrecognizer import DocumentAnalysisClient
+from azure.core.credentials import AzureKeyCredential
+from azure.cognitiveservices.speech import SpeechConfig, SpeechSynthesizer, AudioConfig
+import azure.cognitiveservices.speech as speechsdk
+from dotenv import load_dotenv
+from bs4 import BeautifulSoup
+import requests
+from PyPDF2 import PdfReader
+import ffmpeg
+import xml.etree.ElementTree as ET
+import uuid
+import time
+from pathlib import Path
 
-client = AzureOpenAI(api_key=AZURE_OPENAI_KEY,
-api_version='2022-12-01')  
-from azure.ai.formrecognizer import DocumentAnalysisClient  
-from azure.core.credentials import AzureKeyCredential  
-from azure.cognitiveservices.speech import SpeechConfig, SpeechSynthesizer, AudioConfig  
-import ffmpeg  
-from dotenv import load_dotenv  
+# Cargar variables de entorno desde .env
+load_dotenv()
 
-# Cargar variables de entorno desde .env  
-load_dotenv()  
+app = Flask(__name__)
 
-app = Flask(__name__)  
+# Configuraciones de Azure desde variables de entorno
+AZURE_OPENAI_TYPE = os.getenv('AZURE_OPENAI_TYPE')
+AZURE_OPENAI_KEY = os.getenv('AZURE_OPENAI_KEY')
+AZURE_OPENAI_ENDPOINT = os.getenv('AZURE_OPENAI_ENDPOINT')
+AZURE_OPENAI_API_VERSION = os.getenv('AZURE_OPENAI_API_VERSION')
+AZURE_OPENAI_ENGINE = os.getenv('AZURE_OPENAI_ENGINE')
+AZURE_FORM_RECOGNIZER_KEY = os.getenv('AZURE_FORM_RECOGNIZER_KEY')
+AZURE_FORM_RECOGNIZER_ENDPOINT = os.getenv('AZURE_FORM_RECOGNIZER_ENDPOINT')
+AZURE_SPEECH_KEY = os.getenv('AZURE_SPEECH_KEY')
+AZURE_SPEECH_REGION = os.getenv('AZURE_SPEECH_REGION')
 
-# Configuraciones de Azure desde variables de entorno  
-AZURE_OPENAI_KEY = os.getenv('AZURE_OPENAI_KEY')  
-AZURE_OPENAI_ENDPOINT = os.getenv('AZURE_OPENAI_ENDPOINT')  
-AZURE_FORM_RECOGNIZER_KEY = os.getenv('AZURE_FORM_RECOGNIZER_KEY')  
-AZURE_FORM_RECOGNIZER_ENDPOINT = os.getenv('AZURE_FORM_RECOGNIZER_ENDPOINT')  
-AZURE_SPEECH_KEY = os.getenv('AZURE_SPEECH_KEY')  
-AZURE_SPEECH_REGION = os.getenv('AZURE_SPEECH_REGION')  
+# Configuración de OpenAI para Azure
+openai.api_type = AZURE_OPENAI_TYPE
+openai.api_key = AZURE_OPENAI_KEY
+openai.api_base = AZURE_OPENAI_ENDPOINT  # Asegúrate de que termina con "/"
+openai.api_version = AZURE_OPENAI_API_VERSION  # Asegúrate de que es compatible con tu despliegue
 
-# Configuración de OpenAI  
-# TODO: The 'openai.api_base' option isn't read in the client API. You will need to pass it when you instantiate the client, e.g. 'OpenAI(base_url=AZURE_OPENAI_ENDPOINT)'
-# openai.api_base = AZURE_OPENAI_ENDPOINT  
-  # Ajusta la versión según tu configuración  
+@app.route('/')
+def index():
+    return render_template('index.html')
 
-@app.route('/')  
-def index():  
-    return render_template('index.html')  
+@app.route('/extract_text_from_pdf', methods=['POST'])
+def extract_text_from_pdf():
+    file = request.files['pdf-file']
+    use_azure = request.form.get('azure')
 
-@app.route('/extract_text_from_pdf', methods=['POST'])  
-def extract_text_from_pdf():  
-    file = request.files['pdf-file']  
-    use_azure = request.form.get('azure')  
+    if use_azure == 'on':
+        # Lógica para extraer texto usando Azure Form Recognizer
+        client = DocumentAnalysisClient(
+            endpoint=AZURE_FORM_RECOGNIZER_ENDPOINT,
+            credential=AzureKeyCredential(AZURE_FORM_RECOGNIZER_KEY)
+        )
+        poller = client.begin_analyze_document("prebuilt-document", file)
+        result = poller.result()
+        text = " ".join([line.content for page in result.pages for line in page.lines])
+    else:
+        # Lógica alternativa para extraer texto de PDF usando PyPDF2
+        reader = PdfReader(file)
+        text = ''
+        for page in reader.pages:
+            text += page.extract_text()
+    return jsonify({'text': text})
 
-    if use_azure:  
-        # Lógica para extraer texto usando Azure Form Recognizer  
-        client = DocumentAnalysisClient(  
-            endpoint=AZURE_FORM_RECOGNIZER_ENDPOINT,   
-            credential=AzureKeyCredential(AZURE_FORM_RECOGNIZER_KEY)  
-        )  
-        poller = client.begin_analyze_document("prebuilt-document", file)  
-        result = poller.result()  
-        text = " ".join([line.content for page in result.pages for line in page.lines])  
-    else:  
-        # Lógica alternativa para extraer texto de PDF  
-        text = "Texto extraído del PDF"  
+@app.route('/extract_text_from_website', methods=['POST'])
+def extract_text_from_website():
+    url = request.form['website-url']
+    try:
+        response = requests.get(url)
+        soup = BeautifulSoup(response.content, 'html.parser')
+        # Eliminar scripts y estilos
+        for script_or_style in soup(['script', 'style']):
+            script_or_style.decompose()
+        text = ' '.join(soup.stripped_strings)
+    except Exception as e:
+        text = f"Error al extraer texto del sitio web: {e}"
+    return jsonify({'text': text})
 
-    return jsonify({'text': text})  
+@app.route('/generate_outline', methods=['POST'])
+def generate_outline():
+    content = request.form['content']
+    try:
+        response = openai.chat.completions.create(
+            model=AZURE_OPENAI_ENGINE,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an assistant that generates podcast conversations in SSML format with voice placeholders."
+                },
+                {
+                    "role": "user",
+                    "content": f"""Generate a podcast conversation between two speakers discussing the following content: {content}
 
-@app.route('/extract_text_from_website', methods=['POST'])  
-def extract_text_from_website():  
-    url = request.form['website-url']  
-    # Lógica para extraer texto de una URL (puedes usar BeautifulSoup o una solución similar)  
-    text = "Texto extraído del sitio web"  
-    return jsonify({'text': text})  
+The podcast should be brief and start with a quick introduction to the topic.
+Then, the two speakers should have a lively discussion covering the most important points.
+The two speakers should have different speaking styles.
 
-@app.route('/generate_outline', methods=['POST'])  
-def generate_outline():  
-    content = request.form['content']  
-    response = client.completions.create(model="gpt-4",  # Usar el modelo GPT-4  
-    prompt=f"Resumen del contenido: {content}",  
-    max_tokens=150)  
-    outline = response.choices[0].text.strip()  
-    return jsonify({'outline': outline})  
+Provide the conversation in valid SSML format, including the <speak> tag at the beginning and end of the document.
+Set the xml:lang attribute in the <speak> tag to "en-US".
+Use placeholders {{Speaker1_Voice}} and {{Speaker2_Voice}} for the voice names in the <voice> tags.
+For example:
 
-@app.route('/generate_audio', methods=['POST'])  
-def generate_audio():  
-    outline = request.form['outline']  
-    speaker1 = request.form['speaker1']  
-    speaker2 = request.form['speaker2']  
+<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US">
+  <voice name="{{Speaker1_Voice}}">Speaker 1's dialogue</voice>
+  <voice name="{{Speaker2_Voice}}">Speaker 2's dialogue</voice>
+</speak>
 
-    speech_config = SpeechConfig(subscription=AZURE_SPEECH_KEY, region=AZURE_SPEECH_REGION)  
+Ensure that the SSML is well-formed and can be interpreted by Azure Speech Services.
 
-    def generate_speech(text, speaker):  
-        audio_config = AudioConfig(filename=f"{speaker}.wav")  
-        synthesizer = SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config)  
-        synthesizer.speak_text_async(text).get()  
+Do not include any text outside of the SSML tags."""
+                }
+            ],
+        )
+        outline = response.choices[0].message.content.strip()
+    except Exception as e:
+        outline = f"Error generating the outline: {e}"
+    return jsonify({'outline': outline})
 
-    # Dividir el outline en dos partes y asignar a cada speaker  
-    parts = outline.split("\n")  
-    generate_speech(parts[0], speaker1)  
-    generate_speech(parts[1], speaker2)  
+def is_valid_ssml(ssml_content):
+    try:
+        ET.fromstring(ssml_content)
+        return True
+    except ET.ParseError as e:
+        print(f"Invalid SSML: {e}")
+        return False
 
-    # Combinar audios con ffmpeg  
-    os.system(f"ffmpeg -i concat:{speaker1}.wav|{speaker2}.wav -acodec copy output.wav")  
+@app.route('/generate_audio', methods=['POST'])
+def generate_audio():
+    ssml_outline = request.form['outline']
+    speaker1 = request.form['speaker1']
+    speaker2 = request.form['speaker2']
 
-    return jsonify({'audio_file': 'output.wav'})  
+    # Reemplazar los marcadores de posición con las voces seleccionadas por el usuario
+    ssml_outline = ssml_outline.replace('{Speaker1_Voice}', speaker1)
+    ssml_outline = ssml_outline.replace('{Speaker2_Voice}', speaker2)
 
-if __name__ == '__main__':  
-    app.run(debug=True)  
+    if not is_valid_ssml(ssml_outline):
+        return jsonify({'error': 'El contenido SSML no es válido.'}), 400
+
+    speech_config = SpeechConfig(subscription=AZURE_SPEECH_KEY, region=AZURE_SPEECH_REGION)
+
+    # Crear un identificador único para el archivo de audio
+    unique_id = str(int(time.time()))
+    file_name = 'output'+f'{unique_id}.wav'
+    output_dir = 'audio_output'
+    Path(output_dir).mkdir(exist_ok=True)  # Crear el directorio si no existe
+    file_path = os.path.join(output_dir, file_name)
+
+    generate_speech(ssml_outline, file_path, speech_config)
+
+    return jsonify({'audio_file': f'/audio/{file_name}'})
+
+def generate_speech(ssml_content, file_path, speech_config):
+    audio_config = AudioConfig(filename=file_path)
+    synthesizer = SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config)
+    try:
+        result = synthesizer.speak_ssml_async(ssml_content).get()
+        if result.reason == speechsdk.ResultReason.Canceled:
+            cancellation_details = result.cancellation_details
+            print(f"Speech synthesis canceled: {cancellation_details.reason}")
+            if cancellation_details.error_details:
+                print(f"Error details: {cancellation_details.error_details}")
+            return False
+        return True
+    except Exception as e:
+        print(f"Error synthesizing speech: {e}")
+        return False
+
+@app.route('/audio/<filename>')
+def get_audio_file(filename):
+    return send_from_directory('audio_output', filename)
+
+if __name__ == '__main__':
+    if not os.path.exists('audio_output'):
+        os.makedirs('audio_output')
+    app.run(debug=True)
