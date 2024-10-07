@@ -5,59 +5,70 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Podcast Anything</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>Podcast Anything</h1>
+            <h1>Podcast Things With OneClick</h1>
         </header>
         <section class="content">
-            <h2>Podcast Content</h2>
+            <h2>Content Origin</h2>
             <form id="pdf-form" enctype="multipart/form-data">
                 <label for="pdf-file">Select PDF File</label>
-                <input type="file" id="pdf-file" name="pdf-file">
-                <label for="azure">Use Azure Document Intelligence</label>
-                <input type="checkbox" id="azure" name="azure">
-                <button type="button" onclick="extractTextFromPdf()">Extract Text from PDF</button>
+                <input type="file" id="pdf-file" name="pdf-file" class="input-field">
+                
+                <!-- CheckBox and Text Aligned -->
+                <div class="checkbox-container">
+                    <input type="checkbox" id="azure" name="azure" class="input-checkbox">
+                    <label for="azure">Use Azure Document Intelligence</label>
+                </div>
+                
+                <button type="button" class="btn" onclick="extractTextFromPdf()">Extract Text from PDF</button>
             </form>
+            
             <form id="website-form">
                 <label for="website-url">Website URL</label>
-                <input type="text" id="website-url" name="website-url" placeholder="Enter website URL...">
-                <button type="button" onclick="extractTextFromWebsite()">Extract Text from Website</button>
+                <input type="text" id="website-url" name="website-url" class="input-field" placeholder="Enter website URL...">
+                <button type="button" class="btn" onclick="extractTextFromWebsite()">Extract Text from Website</button>
             </form>
+            
             <form id="content-form">
                 <label for="podcast-content">Content for Podcast Outline</label>
-                <textarea id="podcast-content" name="podcast-content" rows="10"></textarea>
-                <button type="button" onclick="generateOutline()">Generate Outline</button>
+                <textarea id="podcast-content" name="podcast-content" class="input-field" rows="10"></textarea>
+                <button type="button" class="btn" onclick="generateOutline()">Generate Outline</button>
             </form>
         </section>
+
         <section class="outline">
             <h2>Podcast Outline</h2>
             <form id="outline-form">
                 <label for="speaker1">Speaker 1 Voice</label>
-                <select id="speaker1" name="speaker1">
+                <select id="speaker1" name="speaker1" class="input-field">
                     <option value="en-US-AvaMultilingualNeural">Ava Multilingual</option>
-                    <option value="en-US-AndrewMultilingualNeural">Andrew</option>
+                    <option value="en-US-AndrewMultilingualNeural">Andrew Multilingual</option>
                     <option value="en-US-GuyNeural">Guy</option>
                     <option value="en-US-JennyNeural">Jenny</option>
-                    <!-- Agrega más voces si es necesario -->
                 </select>
+                
                 <label for="speaker2">Speaker 2 Voice</label>
-                <select id="speaker2" name="speaker2">
+                <select id="speaker2" name="speaker2" class="input-field">
                     <option value="en-US-AvaMultilingualNeural">Ava Multilingual</option>
-                    <option value="en-US-AndrewMultilingualNeural">Andrew</option>
+                    <option value="en-US-AndrewMultilingualNeural">Andrew Multilingual</option>
                     <option value="en-US-GuyNeural">Guy</option>
                     <option value="en-US-JennyNeural">Jenny</option>
-                    <!-- Agrega más voces si es necesario -->
                 </select>
-                <textarea id="conversation-outline" name="conversation-outline" rows="10" placeholder="The generated conversation outline will appear here..."></textarea>
-                <button type="button" onclick="generateAudio()">Generate Audio</button>
+                
+                <textarea id="conversation-outline" name="conversation-outline" class="input-field" rows="10" placeholder="The generated conversation outline will appear here..."></textarea>
+                <button type="button" class="btn" onclick="generateAudio()">Generate Audio</button>
             </form>
-            <!-- Indicador de carga -->
-            <div id="loading-indicator" style="display: none;">
+            
+            <!-- Loading Indicator -->
+            <div id="loading-indicator" class="loading-indicator" style="display: none;">
                 <p>Processing... Please wait.</p>
             </div>
-            <!-- Contenedor para el reproductor de audio -->
+            
+            <!-- Player Container -->
             <div id="audio-player"></div>
         </section>
     </div>

@@ -11,16 +11,16 @@ import requests
 from PyPDF2 import PdfReader
 import ffmpeg
 import xml.etree.ElementTree as ET
-import uuid
 import time
+import datetime
 from pathlib import Path
 
-# Cargar variables de entorno desde .env
+# Load environment variables from .env
 load_dotenv()
 
 app = Flask(__name__)
 
-# Configuraciones de Azure desde variables de entorno
+# Azure configurations from environment variables
 AZURE_OPENAI_TYPE = os.getenv('AZURE_OPENAI_TYPE')
 AZURE_OPENAI_KEY = os.getenv('AZURE_OPENAI_KEY')
 AZURE_OPENAI_ENDPOINT = os.getenv('AZURE_OPENAI_ENDPOINT')
@@ -31,11 +31,11 @@ AZURE_FORM_RECOGNIZER_ENDPOINT = os.getenv('AZURE_FORM_RECOGNIZER_ENDPOINT')
 AZURE_SPEECH_KEY = os.getenv('AZURE_SPEECH_KEY')
 AZURE_SPEECH_REGION = os.getenv('AZURE_SPEECH_REGION')
 
-# Configuración de OpenAI para Azure
+# OpenAI configuration for Azure
 openai.api_type = AZURE_OPENAI_TYPE
 openai.api_key = AZURE_OPENAI_KEY
-openai.api_base = AZURE_OPENAI_ENDPOINT  # Asegúrate de que termina con "/"
-openai.api_version = AZURE_OPENAI_API_VERSION  # Asegúrate de que es compatible con tu despliegue
+openai.api_base = AZURE_OPENAI_ENDPOINT  # Make sure it ends with "/"
+openai.api_version = AZURE_OPENAI_API_VERSION  # Ensure it's compatible with your deployment
 
 @app.route('/')
 def index():
@@ -47,7 +47,7 @@ def extract_text_from_pdf():
     use_azure = request.form.get('azure')
 
     if use_azure == 'on':
-        # Lógica para extraer texto usando Azure Form Recognizer
+        # Logic to extract text using Azure Form Recognizer
         client = DocumentAnalysisClient(
             endpoint=AZURE_FORM_RECOGNIZER_ENDPOINT,
             credential=AzureKeyCredential(AZURE_FORM_RECOGNIZER_KEY)
@@ -56,7 +56,7 @@ def extract_text_from_pdf():
         result = poller.result()
         text = " ".join([line.content for page in result.pages for line in page.lines])
     else:
-        # Lógica alternativa para extraer texto de PDF usando PyPDF2
+        # Alternative logic to extract text from PDF using PyPDF2
         reader = PdfReader(file)
         text = ''
         for page in reader.pages:
@@ -69,12 +69,12 @@ def extract_text_from_website():
     try:
         response = requests.get(url)
         soup = BeautifulSoup(response.content, 'html.parser')
-        # Eliminar scripts y estilos
+        # Remove scripts and styles
         for script_or_style in soup(['script', 'style']):
             script_or_style.decompose()
         text = ' '.join(soup.stripped_strings)
     except Exception as e:
-        text = f"Error al extraer texto del sitio web: {e}"
+        text = f"Error extracting text from the website: {e}"
     return jsonify({'text': text})
 
 @app.route('/generate_outline', methods=['POST'])
@@ -131,20 +131,20 @@ def generate_audio():
     speaker1 = request.form['speaker1']
     speaker2 = request.form['speaker2']
 
-    # Reemplazar los marcadores de posición con las voces seleccionadas por el usuario
+    # Replace placeholders with voices selected by the user
     ssml_outline = ssml_outline.replace('{Speaker1_Voice}', speaker1)
     ssml_outline = ssml_outline.replace('{Speaker2_Voice}', speaker2)
 
     if not is_valid_ssml(ssml_outline):
-        return jsonify({'error': 'El contenido SSML no es válido.'}), 400
+        return jsonify({'error': 'The SSML content is not valid.'}), 400
 
     speech_config = SpeechConfig(subscription=AZURE_SPEECH_KEY, region=AZURE_SPEECH_REGION)
 
-    # Crear un identificador único para el archivo de audio
-    unique_id = str(int(time.time()))
+    # Create a unique identifier for the audio file
+    unique_id = datetime.datetime.now().strftime("%Y%m%d_%H%M")
     file_name = 'output'+f'{unique_id}.wav'
     output_dir = 'audio_output'
-    Path(output_dir).mkdir(exist_ok=True)  # Crear el directorio si no existe
+    Path(output_dir).mkdir(exist_ok=True)  # Create the directory if it doesn't exist
     file_path = os.path.join(output_dir, file_name)
 
     generate_speech(ssml_outline, file_path, speech_config)
