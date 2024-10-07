@@ -1,17 +1,21 @@
 {
-    "name": "PodCastSecurity",
-    "image": "mcr.microsoft.com/vscode/devcontainers/base:0-alpine-3.13",
+    "name": "My Dev Container",
+    "image": "mcr.microsoft.com/vscode/devcontainers/base:0-bullseye",
     "features": {
         "docker-in-docker": "latest"
     },
-    "settings": {
-        "terminal.integrated.shell.linux": "/bin/sh"
+    "customizations": {
+        "vscode": {
+            "settings": {
+                "terminal.integrated.shell.linux": "/bin/sh"
+            },
+            "extensions": [
+                "ms-vscode.cpptools",
+                "ms-python.python",
+                "dbaeumer.vscode-eslint"
+            ]
+        }
     },
-    "extensions": [
-        "ms-vscode.cpptools",
-        "ms-python.python",
-        "dbaeumer.vscode-eslint"
-    ],
-    "postCreateCommand": "pip install -r requirements.txt",
+    "postCreateCommand": "apt-get update && apt-get install -y python3-pip && pip install -r requirements.txt",
     "remoteUser": "vscode"
 }
