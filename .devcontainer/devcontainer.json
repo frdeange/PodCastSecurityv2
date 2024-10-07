@@ -1,15 +1,17 @@
-{  
-    "name": "Flask DevContainer",  
-    "dockerFile": "Dockerfile",  
-    "context": ".",  
-    "runArgs": ["--env-file", ".env"],  
-    "settings": {  
-        "terminal.integrated.shell.linux": "/bin/bash"  
-    },  
-    "extensions": [  
-        "ms-python.python",  
-        "ms-azuretools.vscode-docker"  
-    ],  
-    "postCreateCommand": "pip install -r requirements.txt",  
-    "remoteUser": "vscode"  
-}  
+{
+    "name": "PodCastSecurity",
+    "image": "mcr.microsoft.com/vscode/devcontainers/base:0-alpine-3.13",
+    "features": {
+        "docker-in-docker": "latest"
+    },
+    "settings": {
+        "terminal.integrated.shell.linux": "/bin/sh"
+    },
+    "extensions": [
+        "ms-vscode.cpptools",
+        "ms-python.python",
+        "dbaeumer.vscode-eslint"
+    ],
+    "postCreateCommand": "pip install -r requirements.txt",
+    "remoteUser": "vscode"
+}
