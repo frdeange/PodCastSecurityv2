@@ -36,6 +36,9 @@ MANIFEST
 pip-log.txt
 pip-delete-this-directory.txt
 
+# generated audio files
+*.wav
+
 # Unit test / coverage reports
 htmlcov/
 .tox/
