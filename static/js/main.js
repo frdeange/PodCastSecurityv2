@@ -99,7 +99,7 @@ function generateAudio() {
     }
 
     if (!speaker1 || !speaker2) {
-        alert('Please, you have to choose the speakers voices for the postcast.');
+        alert('Please, you have to choose the speakers voices for the podcast.');
         return;
     }
 

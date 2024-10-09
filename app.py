@@ -1,4 +1,3 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory
 import os
 import openai
 from azure.ai.formrecognizer import DocumentAnalysisClient
@@ -9,12 +8,12 @@ from dotenv import load_dotenv
 from bs4 import BeautifulSoup
 import requests
 from PyPDF2 import PdfReader
-import ffmpeg
 import xml.etree.ElementTree as ET
-import time
 import datetime
+from datetime import datetime, timedelta
+from azure.storage.blob import BlobServiceClient, generate_blob_sas, BlobSasPermissions
+from flask import Flask, render_template, request, jsonify
 from pathlib import Path
-from azure.storage.blob import BlobServiceClient
 
 # Load environment variables from .env
 load_dotenv()
@@ -152,15 +151,27 @@ def generate_audio():
     speech_config = SpeechConfig(subscription=AZURE_SPEECH_KEY, region=AZURE_SPEECH_REGION)
 
     # Create a unique identifier for the audio file
-    unique_id = datetime.datetime.now().strftime("%Y%m%d_%H%M")
-    file_name = 'output'+f'{unique_id}.wav'
-    output_dir = 'audio_output'
-    Path(output_dir).mkdir(exist_ok=True)  # Create the directory if it doesn't exist
-    file_path = os.path.join(output_dir, file_name)
+    unique_id = datetime.now().strftime("%Y%m%d_%H%M")
+    file_name = f'output_{unique_id}.wav'
+    file_path = f'/tmp/{file_name}'  # Use a temporary directory
 
-    generate_speech(ssml_outline, file_path, speech_config)
+    # Generate speech and save locally first
+    if not generate_speech(ssml_outline, file_path, speech_config):
+        return jsonify({'error': 'Error generating the audio.'}), 500
 
-    return jsonify({'audio_file': f'/audio/{file_name}'})
+    # Verify the file exists before uploading
+    if not os.path.exists(file_path):
+        print(f"Error: The file at {file_path} does not exist.")
+        return jsonify({'error': f'The file at {file_path} does not exist.'}), 500
+
+    # Upload the file to Azure Blob Storage
+    try:
+        blob_url = upload_to_blob_storage(file_name, file_path)
+        # print(f"File successfully uploaded to: {blob_url}")
+    except Exception as e:
+        return jsonify({'error': f'Error uploading audio to Azure Blob Storage: {e}'}), 500
+
+    return jsonify({'audio_file': blob_url})
 
 def generate_speech(ssml_content, file_path, speech_config):
     audio_config = AudioConfig(filename=file_path)
@@ -178,9 +189,41 @@ def generate_speech(ssml_content, file_path, speech_config):
         print(f"Error synthesizing speech: {e}")
         return False
 
-@app.route('/audio/<filename>')
-def get_audio_file(filename):
-    return send_from_directory('audio_output', filename)
+def upload_to_blob_storage(blob_name, file_path):
+    try:
+        # Create the blobn client
+        blob_client = container_client.get_blob_client(blob_name)
+        
+        # Upload the file to the blob
+        with open(file_path, "rb") as data:
+            blob_client.upload_blob(data, overwrite=True)
+        
+        # Generate a SAS token for the blob
+        sas_token = generate_blob_sas(
+            account_name=blob_service_client.account_name,
+            container_name=container_name,
+            blob_name=blob_name,
+            account_key=blob_service_client.credential.account_key,
+            permission=BlobSasPermissions(read=True),
+            expiry=datetime.utcnow() + timedelta(hours=1)  # Valid for 1 hour
+        )
+        
+        # Generate the blob URL
+        blob_url = f"https://{blob_service_client.account_name}.blob.core.windows.net/{container_name}/{blob_name}?{sas_token}"
+        
+        print(f"File uploaded to: {blob_url}")
+        return blob_url
+    except Exception as e:
+        print(f"Error uploading to Blob Storage: {e}")
+        raise
+
+def is_valid_ssml(ssml_content):
+    try:
+        ET.fromstring(ssml_content)
+        return True
+    except ET.ParseError as e:
+        print(f"Invalid SSML: {e}")
+        return False
 
 if __name__ == '__main__':
     if not os.path.exists('audio_output'):
