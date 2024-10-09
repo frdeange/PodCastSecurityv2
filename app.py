@@ -14,22 +14,33 @@ import xml.etree.ElementTree as ET
 import time
 import datetime
 from pathlib import Path
+from azure.storage.blob import BlobServiceClient
 
 # Load environment variables from .env
 load_dotenv()
 
 app = Flask(__name__)
 
-# Azure configurations from environment variables
+# Azure OpenAI Config from environment variables
 AZURE_OPENAI_TYPE = os.getenv('AZURE_OPENAI_TYPE')
 AZURE_OPENAI_KEY = os.getenv('AZURE_OPENAI_KEY')
 AZURE_OPENAI_ENDPOINT = os.getenv('AZURE_OPENAI_ENDPOINT')
 AZURE_OPENAI_API_VERSION = os.getenv('AZURE_OPENAI_API_VERSION')
 AZURE_OPENAI_ENGINE = os.getenv('AZURE_OPENAI_ENGINE')
+
+# Azure Form Recognizer config from environment variables
 AZURE_FORM_RECOGNIZER_KEY = os.getenv('AZURE_FORM_RECOGNIZER_KEY')
 AZURE_FORM_RECOGNIZER_ENDPOINT = os.getenv('AZURE_FORM_RECOGNIZER_ENDPOINT')
+
+# Azure Speech Services config from environment variables
 AZURE_SPEECH_KEY = os.getenv('AZURE_SPEECH_KEY')
 AZURE_SPEECH_REGION = os.getenv('AZURE_SPEECH_REGION')
+
+# Azure Blob Storage config from environment variables
+connect_str = os.getenv('AZURE_STORAGE_CONNECTION_STRING')
+blob_service_client = BlobServiceClient.from_connection_string(connect_str)
+container_name = os.getenv('AZURE_STORAGE_CONTAINER_NAME')
+container_client = blob_service_client.get_container_client(container_name)
 
 # OpenAI configuration for Azure
 openai.api_type = AZURE_OPENAI_TYPE

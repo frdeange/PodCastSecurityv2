@@ -1,9 +1,9 @@
-// Función para mostrar el indicador de carga
+// Show loading indicator when a form is submitted
 function showLoadingIndicator() {
     document.getElementById('loading-indicator').style.display = 'block';
 }
 
-// Función para ocultar el indicador de carga
+// Hide loading indicator when the form submission is complete
 function hideLoadingIndicator() {
     document.getElementById('loading-indicator').style.display = 'none';
 }
@@ -21,19 +21,19 @@ function extractTextFromPdf() {
         if (data.text) {
             document.getElementById('podcast-content').value = data.text;
         } else {
-            alert('Error al extraer texto del PDF.');
+            alert('Error Extracting text from PDF.');
         }
     })
     .catch(error => {
         hideLoadingIndicator();
-        alert('Error al extraer texto del PDF: ' + error);
+        alert('Error Extracting text from PDF. ' + error);
     });
 }
 
 function extractTextFromWebsite() {
     var websiteUrl = document.getElementById('website-url').value;
     if (!websiteUrl) {
-        alert('Por favor, ingresa una URL válida.');
+        alert('Please, insert a correct url, including http:// or https://');
         return;
     }
     showLoadingIndicator();
@@ -50,19 +50,19 @@ function extractTextFromWebsite() {
         if (data.text) {
             document.getElementById('podcast-content').value = data.text;
         } else {
-            alert('Error al extraer texto del sitio web.');
+            alert('Error extracting text from URL.');
         }
     })
     .catch(error => {
         hideLoadingIndicator();
-        alert('Error al extraer texto del sitio web: ' + error);
+        alert('Error extracting text from URL: ' + error);
     });
 }
 
 function generateOutline() {
     var content = document.getElementById('podcast-content').value;
     if (!content) {
-        alert('Por favor, proporciona contenido para generar el esquema.');
+        alert('Please provide a content to generates the podcast script.');
         return;
     }
     showLoadingIndicator();
@@ -79,12 +79,12 @@ function generateOutline() {
         if (data.outline) {
             document.getElementById('conversation-outline').value = data.outline;
         } else {
-            alert('Error al generar el esquema.');
+            alert('Error Creating the schema.');
         }
     })
     .catch(error => {
         hideLoadingIndicator();
-        alert('Error al generar el esquema: ' + error);
+        alert('Fail creating schema: ' + error);
     });
 }
 
@@ -94,12 +94,12 @@ function generateAudio() {
     var speaker2 = document.getElementById('speaker2').value;
 
     if (!outline) {
-        alert('Por favor, proporciona el esquema de conversación para generar el audio.');
+        alert('Please provide the XML script to create the audio.');
         return;
     }
 
     if (!speaker1 || !speaker2) {
-        alert('Por favor, selecciona las voces para ambos oradores.');
+        alert('Please, you have to choose the speakers voices for the postcast.');
         return;
     }
 
@@ -115,21 +115,21 @@ function generateAudio() {
     .then(data => {
         hideLoadingIndicator();
         if (data.error) {
-            alert('Error al generar el audio: ' + data.error);
+            alert('Error Creating the audio: ' + data.error);
         } else if (data.audio_file) {
             var audioUrl = data.audio_file;
             var audioElement = document.createElement('audio');
             audioElement.controls = true;
             audioElement.src = audioUrl;
             var audioPlayerDiv = document.getElementById('audio-player');
-            audioPlayerDiv.innerHTML = ''; // Limpiar reproductores anteriores
+            audioPlayerDiv.innerHTML = ''; // Clean Previous Audio
             audioPlayerDiv.appendChild(audioElement);
         } else {
-            alert('Error desconocido al generar el audio.');
+            alert('Unknown error creating the audio.');
         }
     })
     .catch(error => {
         hideLoadingIndicator();
-        alert('Error al generar el audio: ' + error);
+        alert('Error creating the audio: ' + error);
     });
 }
