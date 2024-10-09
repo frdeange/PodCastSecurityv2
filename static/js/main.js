@@ -8,8 +8,22 @@ function hideLoadingIndicator() {
     document.getElementById('loading-indicator').style.display = 'none';
 }
 
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelector('.btn').addEventListener('click', extractTextFromPdf);
+});
+
 function extractTextFromPdf() {
-    var formData = new FormData(document.getElementById('pdf-form'));
+    var files = document.getElementById('pdf-files').files;
+    if (files.length === 0) {
+        alert('Please select at least one PDF file.');
+        return;
+    }
+
+    var formData = new FormData();
+    for (var i = 0; i < files.length; i++) {
+        formData.append('pdf-files', files[i]);
+    }
+
     showLoadingIndicator();
     fetch('/extract_text_from_pdf', {
         method: 'POST',

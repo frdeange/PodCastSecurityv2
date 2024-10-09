@@ -53,25 +53,30 @@ def index():
 
 @app.route('/extract_text_from_pdf', methods=['POST'])
 def extract_text_from_pdf():
-    file = request.files['pdf-file']
+    files = request.files.getlist('pdf-files')
     use_azure = request.form.get('azure')
+    all_text = ""
 
-    if use_azure == 'on':
-        # Logic to extract text using Azure Form Recognizer
-        client = DocumentAnalysisClient(
-            endpoint=AZURE_FORM_RECOGNIZER_ENDPOINT,
-            credential=AzureKeyCredential(AZURE_FORM_RECOGNIZER_KEY)
-        )
-        poller = client.begin_analyze_document("prebuilt-document", file)
-        result = poller.result()
-        text = " ".join([line.content for page in result.pages for line in page.lines])
-    else:
-        # Alternative logic to extract text from PDF using PyPDF2
-        reader = PdfReader(file)
-        text = ''
-        for page in reader.pages:
-            text += page.extract_text()
-    return jsonify({'text': text})
+    for file in files:
+        if use_azure == 'on':
+            # Logic to extract text using Azure Form Recognizer
+            client = DocumentAnalysisClient(
+                endpoint=AZURE_FORM_RECOGNIZER_ENDPOINT,
+                credential=AzureKeyCredential(AZURE_FORM_RECOGNIZER_KEY)
+            )
+            poller = client.begin_analyze_document("prebuilt-document", file)
+            result = poller.result()
+            text = " ".join([line.content for page in result.pages for line in page.lines])
+        else:
+            # Alternative logic to extract text from PDF using PyPDF2
+            reader = PdfReader(file)
+            text = ''
+            for page in reader.pages:
+                text += page.extract_text()
+        
+        all_text += text + "\n\n"  # Concatenate text from each file with a separator
+
+    return jsonify({'text': all_text})
 
 @app.route('/extract_text_from_website', methods=['POST'])
 def extract_text_from_website():
