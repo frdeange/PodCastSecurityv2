@@ -19,12 +19,18 @@ Podcast Generator is a web application that allows users to extract text from a 
 - OpenAI Python client
 - Azure Cognitive Services Speech SDK
 
+You will need an Azure subscription and create the following resources:
+- Azure Blob Storage #To host the audio files
+- Azure OpenAI # To generate the scripts of the podcast
+- Azure Intelligent Document # to Extract text and context from the pdf files (optional)
+- Azure Speech Service #To generates the audio files 
+
 Also, your running machine needs to have installed ffmpeg, so to avoid problems, is recommended to run in DevContainers
 
 
 ## USE DEV CONTAINER
 
-This repo contains the devContainer config to run it correctly without any inconvenience, as
+This repo contains the devContainer config to run it correctly without any inconvenience as a container in your desktop. 
 
 ## Installation
 
@@ -34,8 +40,10 @@ This repo contains the devContainer config to run it correctly without any incon
     git clone https://github.com/frdeange/PodCastSecurityv2.git
     cd PodCastSecurityv2
     ```
+2a) If you have docker in your computer and WSL available, is recommended to run the folder as container
 
-2. Create a virtual environment and activate it:
+
+2b. If not docker or you don't want to use container, enable a virtual environment into your development environment to execute the code
 
     ```sh
     python3 -m venv venv
@@ -52,16 +60,25 @@ This repo contains the devContainer config to run it correctly without any incon
 
 Its recommended to create a .env files on your project root that contains at least the following fields:
 
-AZURE_OPENAI_TYPE="azure"
-AZURE_OPENAI_KEY="YOUR KEY"
-AZURE_OPENAI_ENDPOINT="YOUR ENDPOINT FINISHING WITH /"
-AZURE_OPENAI_API_VERSION="YOUR API VERSION"
-AZURE_OPENAI_ENGINE="THE NAME OF YOUR IMPLEMENTATION"
-AZURE_FORM_RECOGNIZER_KEY="THE FORM RECOGNIZER KEY"
-AZURE_FORM_RECOGNIZER_ENDPOINT="YOUR FORM RECOGNIZER ENDPOINT"
-AZURE_SPEECH_KEY="YOUR SPEECH SERVICE KEY"  
-AZURE_SPEECH_REGION="YOUR SPEECH SERVICE REGIO"
+ ```#Azure OpenAI Required Params
+AZURE_OPENAI_TYPE="azure" # azure or openAI
+AZURE_OPENAI_KEY="YOUR_OPEN_AI_KEY"
+AZURE_OPENAI_ENDPOINT="YOUR_OPENAI_ENDPOINT"
+AZURE_OPENAI_API_VERSION="YOUR_API_VERSION" 
+AZURE_OPENAI_ENGINE="gpt-4o" # Like gpt-4o or model you deployed
 
+#Azure Intelligent Document Required Params
+AZURE_FORM_RECOGNIZER_KEY="YOUR INTELLIGENT DOCUMENT KEY"
+AZURE_FORM_RECOGNIZER_ENDPOINT="YOUR INTELLIGENT DOCUMENT ENDPOINT"
+
+#Azure Speech Required Params
+AZURE_SPEECH_KEY="YOUR SPEECH SERVICE KEY"  
+AZURE_SPEECH_REGION="YOUR SPEECH SERVICE region" # For example swedencentral 
+
+#Azure Storage Required Params
+AZURE_STORAGE_CONNECTION_STRING="YOUR CONNECTION STREAM"
+AZURE_STORAGE_CONTAINER_NAME="YOUR BLOB CONTAINER NAME"
+ ```
 ## Usage
 
 1. Run the Flask application:
