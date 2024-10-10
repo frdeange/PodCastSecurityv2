@@ -6,7 +6,7 @@ import datetime
 import azure.cognitiveservices.speech as speechsdk
 import re
 import tempfile
-import subprocess
+import ffmpeg
 from azure.ai.formrecognizer import DocumentAnalysisClient
 from azure.core.credentials import AzureKeyCredential
 from azure.cognitiveservices.speech import SpeechConfig, SpeechSynthesizer, AudioConfig
@@ -121,6 +121,7 @@ def generate_outline():
 - Add <emphasis> tags where appropriate.
 - Ensure all XML tags are properly closed.
 - If input is a script, convert it directly to SSML without altering dialogue.
+- Do not add any tag or text before or after the ssml content
 
 **Example:**
 
@@ -189,26 +190,15 @@ def split_ssml(ssml_content, max_voice_elements=50):
 
 def combine_audio_files(audio_files, output_path):
     """
-    Combines multiple audio files into a single file using FFmpeg.
+    Combines multiple audio files into a single file using ffmpeg-python.
     """
-    # Create a temporary file listing all the audio files
-    with tempfile.NamedTemporaryFile(mode='w', delete=False) as list_file:
-        for file in audio_files:
-            list_file.write(f"file '{file}'\n")
-        list_filename = list_file.name
-
     try:
-        # Use FFmpeg to concatenate the audio files
-        subprocess.run([
-            'ffmpeg',
-            '-f', 'concat',
-            '-safe', '0',
-            '-i', list_filename,
-            '-c', 'copy',
-            output_path
-        ], check=True)
-    finally:
-        os.remove(list_filename)
+        input_streams = [ffmpeg.input(file) for file in audio_files]
+        ffmpeg.concat(*input_streams, v=0, a=1).output(output_path).run(overwrite_output=True)
+        print(f"Combined audio file created at: {output_path}")
+    except ffmpeg.Error as e:
+        print(f"Error combining audio files: {e}")
+        raise
 
 def generate_speech(ssml_content, file_path, speech_config):
     """
@@ -326,10 +316,8 @@ def generate_audio():
     if len(audio_files) > 1:
         combined_file_name = f'combined_output_{unique_id}.wav'
         combined_file_path = f'/tmp/{combined_file_name}'
-        combine_audio_files(audio_files, combined_file_path)
-
-        # Upload the combined file to Blob Storage
         try:
+            combine_audio_files(audio_files, combined_file_path)
             combined_blob_url = upload_to_blob_storage(combined_file_name, combined_file_path)
         except Exception as e:
             return jsonify({'error': f'Error uploading combined audio to Azure Blob Storage: {e}'}), 500
