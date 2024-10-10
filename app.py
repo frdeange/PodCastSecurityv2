@@ -6,7 +6,6 @@ import datetime
 import azure.cognitiveservices.speech as speechsdk
 import re
 import tempfile
-import ffmpeg
 from azure.ai.formrecognizer import DocumentAnalysisClient
 from azure.core.credentials import AzureKeyCredential
 from azure.cognitiveservices.speech import SpeechConfig, SpeechSynthesizer, AudioConfig
@@ -17,6 +16,7 @@ from datetime import datetime, timedelta
 from azure.storage.blob import BlobServiceClient, generate_blob_sas, BlobSasPermissions
 from flask import Flask, render_template, request, jsonify
 from pathlib import Path
+from pydub import AudioSegment
 
 # Load environment variables from .env
 load_dotenv()
@@ -121,7 +121,6 @@ def generate_outline():
 - Add <emphasis> tags where appropriate.
 - Ensure all XML tags are properly closed.
 - If input is a script, convert it directly to SSML without altering dialogue.
-- Do not add any tag or text before or after the ssml content
 
 **Example:**
 
@@ -190,13 +189,16 @@ def split_ssml(ssml_content, max_voice_elements=50):
 
 def combine_audio_files(audio_files, output_path):
     """
-    Combines multiple audio files into a single file using ffmpeg-python.
+    Combines multiple audio files into a single file using pydub.
     """
     try:
-        input_streams = [ffmpeg.input(file) for file in audio_files]
-        ffmpeg.concat(*input_streams, v=0, a=1).output(output_path).run(overwrite_output=True)
+        combined = AudioSegment.empty()
+        for file in audio_files:
+            audio = AudioSegment.from_wav(file)
+            combined += audio
+        combined.export(output_path, format="wav")
         print(f"Combined audio file created at: {output_path}")
-    except ffmpeg.Error as e:
+    except Exception as e:
         print(f"Error combining audio files: {e}")
         raise
 

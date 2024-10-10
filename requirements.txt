@@ -8,3 +8,4 @@ beautifulsoup4
 requests
 PyPDF2
 azure-storage-blob
+pydub
