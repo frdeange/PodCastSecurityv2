@@ -1,15 +1,18 @@
 import os
 import openai
+import requests
+import xml.etree.ElementTree as ET
+import datetime
+import azure.cognitiveservices.speech as speechsdk
+import re
+import tempfile
+import subprocess
 from azure.ai.formrecognizer import DocumentAnalysisClient
 from azure.core.credentials import AzureKeyCredential
 from azure.cognitiveservices.speech import SpeechConfig, SpeechSynthesizer, AudioConfig
-import azure.cognitiveservices.speech as speechsdk
 from dotenv import load_dotenv
 from bs4 import BeautifulSoup
-import requests
 from PyPDF2 import PdfReader
-import xml.etree.ElementTree as ET
-import datetime
 from datetime import datetime, timedelta
 from azure.storage.blob import BlobServiceClient, generate_blob_sas, BlobSasPermissions
 from flask import Flask, render_template, request, jsonify
@@ -105,25 +108,31 @@ def generate_outline():
                 },
                 {
                     "role": "user",
-                    "content": f"""Generate a podcast conversation between two speakers discussing the following content: {content}
+                    "content": f"""Generate a brief podcast conversation between two speakers discussing the following content: {content}
 
-The podcast should be brief and start with a quick introduction to the topic.
-Then, the two speakers should have a lively discussion covering the most important points.
-The two speakers should have different speaking styles.
+- Start with a quick introduction to the topic.
+- Create a lively discussion covering key points.
+- Use different speaking styles for each speaker.
+- Output in valid SSML with <speak> tags.
+- Set xml:lang="en-US" in the <speak> tag.
+- Use placeholders {{Speaker1_Voice}} and {{Speaker2_Voice}} for voice names.
+- Encapsulate each speaker's dialogue within <voice> and <prosody> tags.
+- Apply consistent prosody attributes (e.g., rate="medium"). Do not use rate="fast".
+- Add <emphasis> tags where appropriate.
+- Ensure all XML tags are properly closed.
+- If input is a script, convert it directly to SSML without altering dialogue.
 
-Provide the conversation in valid SSML format, including the <speak> tag at the beginning and end of the document.
-Set the xml:lang attribute in the <speak> tag to "en-US".
-Use placeholders {{Speaker1_Voice}} and {{Speaker2_Voice}} for the voice names in the <voice> tags.
-For example:
+**Example:**
 
 <speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US">
-  <voice name="{{Speaker1_Voice}}">Speaker 1's dialogue</voice>
-  <voice name="{{Speaker2_Voice}}">Speaker 2's dialogue</voice>
-</speak>
-
-Ensure that the SSML is well-formed and can be interpreted by Azure Speech Services. Add Prosody and Emphasis tags to make the conversation more engaging, but do not use fast prosody never.
-
-Do not include any text outside of the SSML tags."""
+  <voice name="{{Speaker1_Voice}}">
+    <prosody rate="medium">Welcome to our podcast! Today, we're diving into Microsoft partnerships.</prosody>
+  </voice>
+  <voice name="{{Speaker2_Voice}}">
+    <prosody pitch="high" rate="medium">It's a jungle out there!</prosody>
+  </voice>
+  <!-- Continue with similar structure -->
+</speak>."""
                 }
             ],
         )
@@ -132,53 +141,79 @@ Do not include any text outside of the SSML tags."""
         outline = f"Error generating the outline: {e}"
     return jsonify({'outline': outline})
 
-def is_valid_ssml(ssml_content):
+def split_ssml(ssml_content, max_voice_elements=50):
+    """
+    Splits SSML content into multiple chunks, each with up to max_voice_elements <voice> tags.
+    Returns a list of SSML strings.
+    """
+    print(f"SSML content before parsing: {ssml_content}")  # Debug print to see SSML content before parsing
     try:
-        ET.fromstring(ssml_content)
-        return True
+        root = ET.fromstring(ssml_content)
     except ET.ParseError as e:
-        print(f"Invalid SSML: {e}")
-        return False
+        print(f"Error parsing SSML: {e}")
+        return []
 
-@app.route('/generate_audio', methods=['POST'])
-def generate_audio():
-    ssml_outline = request.form['outline']
-    speaker1 = request.form['speaker1']
-    speaker2 = request.form['speaker2']
+    # Define namespace and use it to find <voice> elements
+    ns = {'synthesis': 'http://www.w3.org/2001/10/synthesis'}
+    voices = root.findall('.//synthesis:voice', namespaces=ns)
 
-    # Replace placeholders with voices selected by the user
-    ssml_outline = ssml_outline.replace('{Speaker1_Voice}', speaker1)
-    ssml_outline = ssml_outline.replace('{Speaker2_Voice}', speaker2)
+    if not voices:
+        print("No <voice> elements found in the SSML. Make sure the SSML content has properly formatted <voice> tags.")
+        return []
 
-    if not is_valid_ssml(ssml_outline):
-        return jsonify({'error': 'The SSML content is not valid.'}), 400
+    chunks = []
+    current_chunk = ET.Element('speak', {
+        'version': '1.0',
+        'xmlns': 'http://www.w3.org/2001/10/synthesis',
+        'xml:lang': 'en-US'
+    })
 
-    speech_config = SpeechConfig(subscription=AZURE_SPEECH_KEY, region=AZURE_SPEECH_REGION)
+    count = 0
+    for voice in voices:
+        if count >= max_voice_elements:
+            chunks.append(ET.tostring(current_chunk, encoding='unicode'))
+            current_chunk = ET.Element('speak', {
+                'version': '1.0',
+                'xmlns': 'http://www.w3.org/2001/10/synthesis',
+                'xml:lang': 'en-US'
+            })
+            count = 0
+        current_chunk.append(voice)
+        count += 1
 
-    # Create a unique identifier for the audio file
-    unique_id = datetime.now().strftime("%Y%m%d_%H%M")
-    file_name = f'output_{unique_id}.wav'
-    file_path = f'/tmp/{file_name}'  # Use a temporary directory
+    if count > 0:
+        chunks.append(ET.tostring(current_chunk, encoding='unicode'))
 
-    # Generate speech and save locally first
-    if not generate_speech(ssml_outline, file_path, speech_config):
-        return jsonify({'error': 'Error generating the audio.'}), 500
+    print(f"Total chunks created: {len(chunks)}")
+    return chunks
 
-    # Verify the file exists before uploading
-    if not os.path.exists(file_path):
-        print(f"Error: The file at {file_path} does not exist.")
-        return jsonify({'error': f'The file at {file_path} does not exist.'}), 500
+def combine_audio_files(audio_files, output_path):
+    """
+    Combines multiple audio files into a single file using FFmpeg.
+    """
+    # Create a temporary file listing all the audio files
+    with tempfile.NamedTemporaryFile(mode='w', delete=False) as list_file:
+        for file in audio_files:
+            list_file.write(f"file '{file}'\n")
+        list_filename = list_file.name
 
-    # Upload the file to Azure Blob Storage
     try:
-        blob_url = upload_to_blob_storage(file_name, file_path)
-        # print(f"File successfully uploaded to: {blob_url}")
-    except Exception as e:
-        return jsonify({'error': f'Error uploading audio to Azure Blob Storage: {e}'}), 500
-
-    return jsonify({'audio_file': blob_url})
+        # Use FFmpeg to concatenate the audio files
+        subprocess.run([
+            'ffmpeg',
+            '-f', 'concat',
+            '-safe', '0',
+            '-i', list_filename,
+            '-c', 'copy',
+            output_path
+        ], check=True)
+    finally:
+        os.remove(list_filename)
 
 def generate_speech(ssml_content, file_path, speech_config):
+    """
+    Generates an audio file from SSML content using Azure Speech Services.
+    """
     audio_config = AudioConfig(filename=file_path)
     synthesizer = SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config)
     try:
@@ -195,8 +230,10 @@ def generate_speech(ssml_content, file_path, speech_config):
         return False
 
 def upload_to_blob_storage(blob_name, file_path):
+    """
+    Uploads a file to Azure Blob Storage and generates a SAS URL valid for 1 hour.
+    """
     try:
-        # Create the blobn client
         blob_client = container_client.get_blob_client(blob_name)
         
         # Upload the file to the blob
@@ -213,7 +250,7 @@ def upload_to_blob_storage(blob_name, file_path):
             expiry=datetime.utcnow() + timedelta(hours=1)  # Valid for 1 hour
         )
         
-        # Generate the blob URL
+        # Generate the blob URL with the SAS token
         blob_url = f"https://{blob_service_client.account_name}.blob.core.windows.net/{container_name}/{blob_name}?{sas_token}"
         
         print(f"File uploaded to: {blob_url}")
@@ -223,12 +260,91 @@ def upload_to_blob_storage(blob_name, file_path):
         raise
 
 def is_valid_ssml(ssml_content):
+    """
+    Checks if the SSML content is valid.
+    """
     try:
         ET.fromstring(ssml_content)
         return True
     except ET.ParseError as e:
         print(f"Invalid SSML: {e}")
         return False
+
+@app.route('/generate_audio', methods=['POST'])
+def generate_audio():
+    ssml_outline = request.form['outline']
+    speaker1 = request.form['speaker1']
+    speaker2 = request.form['speaker2']
+
+    # Replace placeholders with the selected voices
+    ssml_outline = ssml_outline.replace('{Speaker1_Voice}', speaker1)
+    ssml_outline = ssml_outline.replace('{Speaker2_Voice}', speaker2)
+
+    if not is_valid_ssml(ssml_outline):
+        return jsonify({'error': 'The SSML content is not valid.'}), 400
+
+    # Count the number of <voice> elements
+    voice_count = len(re.findall(r'<voice name=".*?">', ssml_outline))
+    print("Number of Voices:", voice_count)
+    if voice_count > 50:
+        ssml_chunks = split_ssml(ssml_outline, max_voice_elements=50)
+        print(f"Chunks created: {len(ssml_chunks)}")
+    else:
+        ssml_chunks = [ssml_outline]
+
+    if not ssml_chunks:
+        return jsonify({'error': 'Failed to create SSML chunks.'}), 500
+
+    audio_files = []
+    unique_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+    blob_url = None  # Initialize 'blob_url'
+
+    # Speech configuration
+    speech_config = SpeechConfig(subscription=AZURE_SPEECH_KEY, region=AZURE_SPEECH_REGION)
+
+    for idx, ssml_chunk in enumerate(ssml_chunks):
+        file_name = f'output_{unique_id}_{idx}.wav'
+        file_path = f'/tmp/{file_name}'  # Temporary directory
+
+        # Generate audio for each SSML chunk
+        if not generate_speech(ssml_chunk, file_path, speech_config):
+            return jsonify({'error': f'Error generating the audio for chunk {idx+1}.'}), 500
+
+        # Verify that the file exists
+        if not os.path.exists(file_path):
+            print(f"Error: The file at {file_path} does not exist.")
+            return jsonify({'error': f'The file at {file_path} does not exist.'}), 500
+
+        # Upload the file to Azure Blob Storage
+        try:
+            blob_url = upload_to_blob_storage(file_name, file_path)
+            audio_files.append(file_path)  # Keep local paths for combining
+        except Exception as e:
+            return jsonify({'error': f'Error uploading audio to Azure Blob Storage: {e}'}), 500
+
+    # Combine audio files if there are multiple chunks
+    if len(audio_files) > 1:
+        combined_file_name = f'combined_output_{unique_id}.wav'
+        combined_file_path = f'/tmp/{combined_file_name}'
+        combine_audio_files(audio_files, combined_file_path)
+
+        # Upload the combined file to Blob Storage
+        try:
+            combined_blob_url = upload_to_blob_storage(combined_file_name, combined_file_path)
+        except Exception as e:
+            return jsonify({'error': f'Error uploading combined audio to Azure Blob Storage: {e}'}), 500
+
+        # Clean up temporary files
+        for file in audio_files:
+            os.remove(file)
+        os.remove(combined_file_path)
+
+        return jsonify({'audio_file': combined_blob_url})
+    else:
+        if blob_url:
+            return jsonify({'audio_file': blob_url})
+        else:
+            return jsonify({'error': 'No audio was generated.'}), 500
 
 if __name__ == '__main__':
     if not os.path.exists('audio_output'):
