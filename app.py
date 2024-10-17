@@ -76,7 +76,7 @@ def extract_text_from_pdf():
             text = ''
             for page in reader.pages:
                 text += page.extract_text()
-        
+
         all_text += text + "\n\n"  # Concatenate text from each file with a separator
 
     return jsonify({'text': all_text})
@@ -98,13 +98,15 @@ def extract_text_from_website():
 @app.route('/generate_outline', methods=['POST'])
 def generate_outline():
     content = request.form['content']
+    language = request.form['language']
+
     try:
         response = openai.chat.completions.create(
             model=AZURE_OPENAI_ENGINE,
             messages=[
                 {
                     "role": "system",
-                    "content": "You are an assistant that generates podcast conversations in SSML format with voice placeholders."
+                    "content": f"You are an assistant that generates podcast conversations in SSML format with voice placeholders. Language: {language}."
                 },
                 {
                     "role": "user",
@@ -114,7 +116,8 @@ def generate_outline():
 - Create a lively discussion covering key points.
 - Use different speaking styles for each speaker.
 - Output in valid SSML with <speak> tags.
-- Set xml:lang="en-US" in the <speak> tag.
+- Do not add any content before or after the XML structure.
+- Set xml:lang="{language}" in the <speak> tag and generates the content in the same language of the tag adjusting the text to be correct into the language.
 - Use placeholders {{Speaker1_Voice}} and {{Speaker2_Voice}} for voice names.
 - Encapsulate each speaker's dialogue within <voice> and <prosody> tags.
 - Apply consistent prosody attributes (e.g., rate="medium"). Do not use rate="fast".
@@ -124,7 +127,7 @@ def generate_outline():
 
 **Example:**
 
-<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US">
+<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="{language}">
   <voice name="{{Speaker1_Voice}}">
     <prosody rate="medium">Welcome to our podcast! Today, we're diving into Microsoft partnerships.</prosody>
   </voice>
