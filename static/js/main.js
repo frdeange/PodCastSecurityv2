@@ -75,8 +75,10 @@ function extractTextFromWebsite() {
 
 function generateOutline() {
     var content = document.getElementById('podcast-content').value;
+    var language = document.getElementById('language').value;
+
     if (!content) {
-        alert('Please provide a content to generates the podcast script.');
+        alert('Please provide a content to generate the podcast script.');
         return;
     }
     showLoadingIndicator();
@@ -85,7 +87,7 @@ function generateOutline() {
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: 'content=' + encodeURIComponent(content)
+        body: 'content=' + encodeURIComponent(content) + '&language=' + encodeURIComponent(language)
     })
     .then(response => response.json())
     .then(data => {
