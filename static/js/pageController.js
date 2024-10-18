@@ -40,8 +40,8 @@ function updateVoiceOptions() {
             break;
         case 'es-ES':
             options = `
-                <option value="es-ES-ArabellaNeural">Arabella</option>
-                <option value="es-ES-TristanNeural">Tristan</option>
+                <option value="en-US-AvaMultilingualNeural">Ava</option>
+                <option value="es-ES-AlvaroNeural">Alvaro</option>
             `;
             break;
         default:
